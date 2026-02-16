@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>THE LAST ECHO | STREAM ENGINE</title>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background-color: #000; color: #fff; 
+            font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+
+        /* SFONDO DINAMICO PER LO STREAM */
+        #stream-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #0a0a0a 0%, #000 80%);
+            z-index: 1;
+        }
+
+        /* HEADER STREAM */
+        #stream-header {
+            position: absolute; top: 40px; width: 100%;
+            display: flex; justify-content: space-between; padding: 0 60px;
+            z-index: 10; opacity: 0.5;
+        }
+        .meta-info { font-size: 1rem; letter-spacing: 5px; text-transform: uppercase; }
+        #live-indicator { color: #ff0000; animation: blink 1s infinite; }
+
+        /* AREA MESSAGGIO CENTRALE */
+        #display-area {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 100px; z-index: 5; text-align: center;
+        }
+
+        #echo-text {
+            font-size: clamp(4rem, 10vw, 8rem);
+            font-weight: 900; text-transform: uppercase;
+            line-height: 0.9; letter-spacing: -2px;
+            text-shadow: 0 0 30px rgba(255,255,255,0.2);
+            transition: all 0.5s cubic-bezier(0.075, 0.82, 0.165, 1);
+        }
+
+        #echo-author {
+            margin-top: 40px; font-size: 1.5rem;
+            letter-spacing: 10px; color: #444; text-transform: uppercase;
+        }
+
+        /* BARRA DEL TEMPO LATERALE (VISIVA PER LO STREAM) */
+        #time-bar-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 5px;
+            background: #111; z-index: 10;
+        }
+        #time-bar-fill {
+            height: 100%; width: 100%; background: #fff;
+            transition: width 1s linear; box-shadow: 0 0 15px #fff;
+        }
+
+        /* ANIMAZIONI */
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        
+        .new-signal-flash { animation: flash 0.4s ease-out; }
+        @keyframes flash { 0% { background-color: #fff; } 100% { background-color: #000; } }
+
+        .glitch { animation: glitch-anim 0.2s ease-in-out; }
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-10px, 5px); }
+            40% { transform: translate(10px, -5px); }
+            60% { transform: translate(-5px, 2px); }
+            100% { transform: translate(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="stream-bg"></div>
+    <audio id="ping" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
+
+    <div id="stream-header">
+        <div class="meta-info"><span id="live-indicator">●</span> LIVE SIGNAL</div>
+        <div class="meta-info" id="timer-display">00S RESISTANCE</div>
+        <div class="meta-info">THE LAST ECHO</div>
+    </div>
+
+    <div id="display-area">
+        <div id="echo-text">IN ATTESA DI SEGNALE...</div>
+        <div id="echo-author">SISTEMA ATTIVO</div>
+    </div>
+
+    <div id="time-bar-container">
+        <div id="time-bar-fill"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // Stessa configurazione del sito principale
+        const firebaseConfig = {
+            apiKey: "AIzaSyDtfavFjBDO-nenCJGfx9_NDLDYR3fYiaw",
+            authDomain: "the-last-echo.firebaseapp.com",
+            projectId: "the-last-echo",
+            databaseURL: "https://the-last-echo-default-rtdb.europe-west1.firebasedatabase.app",
+            storageBucket: "the-last-echo.firebasestorage.app",
+            messagingSenderId: "232275208989",
+            appId: "1:232275208989:web:d62b537b73911780d48ff4"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const echoRef = ref(db, 'warhol_v4_signal');
+
+        let lastTs = 0;
+        let timerInt;
+
+        onValue(echoRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const isNew = lastTs !== 0 && data.timestamp > lastTs;
+                lastTs = data.timestamp;
+
+                const txtEl = document.getElementById('echo-text');
+                const authEl = document.getElementById('echo-author');
+                
+                txtEl.innerText = data.text;
+                authEl.innerText = "SCOLPITO DA " + data.author;
+
+                if(isNew) {
+                    // Feedback visivo e sonoro per lo streaming
+                    document.body.classList.add('new-signal-flash');
+                    txtEl.classList.add('glitch');
+                    document.getElementById('ping').play().catch(()=>{});
+                    
+                    setTimeout(() => {
+                        document.body.classList.remove('new-signal-flash');
+                        txtEl.classList.remove('glitch');
+                    }, 500);
+                }
+
+                startStreamTimer(data.timestamp, data.likes || 0);
+            }
+        });
+
+        function startStreamTimer(start, likes) {
+            clearInterval(timerInt);
+            const totalLife = 60000 + (likes * 60000);
+            
+            timerInt = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.ceil((start + totalLife - now) / 1000);
+                const percent = Math.max(0, (diff * 1000) / totalLife * 100);
+
+                document.getElementById('timer-display').innerText = (diff <= 0 ? 0 : diff) + "S RESISTANCE";
+                document.getElementById('time-bar-fill').style.width = percent + "%";
+                
+                // Effetto dissolvenza se il tempo scade
+                document.getElementById('echo-text').style.opacity = diff <= 0 ? "0.1" : "1";
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

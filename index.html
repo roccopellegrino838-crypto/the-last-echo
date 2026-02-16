@@ -1,0 +1,93 @@
+<div id="global-terminal-footer">
+    <div id="ticker-header">WORLDWIDE CERTIFIED FEED [RAW DATA]</div>
+    <div id="ticker-container">
+        <div id="ticker-content">CONNECTING TO SATELLITE FEED...</div>
+    </div>
+</div>
+
+<style>
+    #global-terminal-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #000;
+        border-top: 2px solid #222;
+        z-index: 1000;
+        padding-bottom: 5px;
+    }
+
+    #ticker-header {
+        background: #222;
+        color: #fff;
+        font-size: 0.6rem;
+        padding: 2px 15px;
+        letter-spacing: 3px;
+        font-weight: bold;
+        width: fit-content;
+    }
+
+    #ticker-container {
+        overflow: hidden;
+        white-space: nowrap;
+        padding: 10px 0;
+    }
+
+    #ticker-content {
+        display: inline-block;
+        font-size: 0.9rem;
+        color: #fff;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        animation: scroll-ticker 60s linear infinite;
+    }
+
+    .news-bullet {
+        color: #ff0000; /* Punto rosso per separare le notizie */
+        margin: 0 40px;
+        font-weight: bold;
+    }
+
+    .news-timestamp {
+        color: #444;
+        font-size: 0.7rem;
+        margin-right: 10px;
+    }
+
+    @keyframes scroll-ticker {
+        0% { transform: translateX(50%); }
+        100% { transform: translateX(-100%); }
+    }
+</style>
+
+<script>
+    async function fetchWorldNews() {
+        // Utilizziamo il feed "World News" di Reuters via un proxy affidabile
+        // RSS2JSON è ottimo, ma qui impostiamo parametri per la massima velocità
+        const feedUrl = 'https://www.reutersagency.com/feed/?best-topics=world-news&post_type=best';
+        const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}&api_key=your_free_api_key_if_needed`;
+
+        try {
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+            
+            if (data.status === 'ok') {
+                const newsItems = data.items.map(item => {
+                    // Pulizia del titolo per il terminale
+                    const title = item.title.toUpperCase();
+                    return `<span class="news-bullet">●</span> ${title}`;
+                }).join('');
+                
+                // Raddoppiamo il contenuto per un loop infinito fluido
+                document.getElementById('ticker-content').innerHTML = newsItems + newsItems;
+            }
+        } catch (error) {
+            console.error("Link interrotto:", error);
+            document.getElementById('ticker-content').innerText = "● ERRORE DI CONNESSIONE: FEED MONDIALE OSCURATO ● RITRASMISSIONE IN CORSO...";
+        }
+    }
+
+    // Carica subito e poi ogni 15 minuti
+    fetchWorldNews();
+    setInterval(fetchWorldNews, 900000); 
+</script>
